@@ -4,16 +4,17 @@ import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
 import { getTelegramUser } from "./controller/getTelegramUser.controller.js";
-import {  buyServiceTransaction } from "./controller/fragment.controller.js";
+import { buyServiceTransaction } from "./controller/fragment.controller.js";
+import { STAR_PRICES, PREMIUM_PRICES }from './utils/prices.js';
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const router = express.Router();
 
-// =========================
-// PAYNET JSON-RPC
-// =========================
+/* ============================================================
+   PAYNET JSON-RPC
+============================================================ */
 router.post("/paynet", async (req, res) => {
   const { id, method, params } = req.body;
 
@@ -93,14 +94,15 @@ router.post("/paynet", async (req, res) => {
   }
 });
 
-// =========================
-// Telegram user olish
-// =========================
+/* ============================================================
+   TELEGRAM USER INFORMATION
+============================================================ */
 router.get("/telegram-user/:username", async (req, res) => {
   const { username } = req.params;
 
   try {
     const result = await getTelegramUser(username);
+
     if (result.success) {
       return res.json({ success: true, data: result });
     } else {
@@ -125,9 +127,80 @@ router.get("/telegram-user/:username", async (req, res) => {
   }
 });
 
+/* ============================================================
+   PRICE CALCULATOR (stars & premium)
+============================================================ */
 // =========================
-// Buy service
+// Price Calculation API (User info bilan)
 // =========================
+router.post("/calculate-price", async (req, res) => {
+  const { username, productType, amount } = req.body;
+
+  if (!username || !productType || !amount) {
+    return res.status(400).json({
+      success: false,
+      error: {
+        code: 400,
+        message: "Parametrlar kerak: username, productType, amount",
+        data: { receivedBody: req.body }
+      },
+    });
+  }
+
+  // 1) Avval telegram user ma’lumotlarini olish
+  const userInfo = await getTelegramUser(username);
+
+  if (!userInfo.success) {
+    return res.status(404).json({
+      success: false,
+      error: {
+        code: 404,
+        message: "Foydalanuvchi topilmadi",
+        data: { username }
+      }
+    });
+  }
+
+  try {
+    let priceSUM = null;
+
+    if (productType === "star") {
+      priceSUM = STAR_PRICES[amount];
+    } else if (productType === "premium") {
+      priceSUM = PREMIUM_PRICES[amount];
+    }
+
+    if (!priceSUM) {
+      return res.status(400).json({
+        success: false,
+        error: {
+          code: 400,
+          message: "Noto‘g‘ri amount yoki productType",
+        }
+      });
+    }
+
+    return res.json({
+      success: true,
+      user: userInfo,     // 👈 User ma’lumotlari qo‘shildi
+      data: {
+        productType,
+        amount,
+        priceSUM
+      }
+    });
+
+  } catch (err) {
+    return res.status(500).json({
+      success: false,
+      error: { message: err.message }
+    });
+  }
+});
+
+/* ============================================================
+   BUY SERVICE (final purchase)
+============================================================ */
 router.post("/buy-service", async (req, res) => {
   const { username, productType, amount, priceSUM } = req.body;
 
@@ -143,7 +216,8 @@ router.post("/buy-service", async (req, res) => {
   }
 
   try {
-    const result = await  buyServiceTransaction({ username, productType, amount, priceSUM });
+    const result = await buyServiceTransaction({ username, productType, amount, priceSUM });
+
     if (result.success) {
       return res.json({ success: true, message: result.message, data: result.data });
     } else {
@@ -156,6 +230,7 @@ router.post("/buy-service", async (req, res) => {
         },
       });
     }
+
   } catch (err) {
     return res.status(500).json({
       success: false,
@@ -169,8 +244,6 @@ router.post("/buy-service", async (req, res) => {
 });
 
 export default router;
-
-
 
 
 
