@@ -205,6 +205,7 @@ import express from "express";
 import dayjs from "dayjs";
 import utc from "dayjs/plugin/utc.js";
 import timezone from "dayjs/plugin/timezone.js";
+import axios from "axios";
 
 dayjs.extend(utc);
 dayjs.extend(timezone);
@@ -233,10 +234,15 @@ router.post("/paynet", async (req, res) => {
           });
         }
 
-        
+        let URL = "https://www.smile.one/merchant/mobilelegends/checkrole";
+
+        const { data } = await axios.post(URL, {
+          user_id: params.fields.mlbb_id,
+          zone_id: params.fields.zone_id,
+        });
 
         // Agar mijoz mavjud bo‘lmasa (hozircha false)
-        if (false) {
+        if (data.code === 201) {
           return res.json({
             jsonrpc: "2.0",
             id,
@@ -256,7 +262,7 @@ router.post("/paynet", async (req, res) => {
               .tz("Asia/Tashkent")
               .format("YYYY-MM-DD HH:mm:ss"),
             fields: {
-              amount: 58000,
+              username: data.username,
             },
           },
         });
