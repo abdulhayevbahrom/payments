@@ -235,6 +235,7 @@ router.post("/buy-service", async (req, res) => {
   }
 
   try {
+<<<<<<< HEAD
     const result = await buyServiceTransaction({
       username,
       productType,
@@ -258,6 +259,24 @@ router.post("/buy-service", async (req, res) => {
         },
       });
     }
+=======
+    const result = await buyServiceTransaction({ username, productType, amount, priceSUM });
+    console.log(result);
+
+    // if (result) {
+    //   return res.json({ success: true, message: result.message, data: result.data });
+    // } else {
+    //   return res.status(400).json({
+    //     success: false,
+    //     error: {
+    //       code: 400,
+    //       message: result.message || "Xatolik yuz berdi",
+    //       data: result.error || null
+    //     },
+    //   });
+    // }
+
+>>>>>>> b9633d3d745f1dfe1741b24addaaaf57da0c3c1e
   } catch (err) {
     return res.status(500).json({
       success: false,

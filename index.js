@@ -1,12 +1,12 @@
 // index.js
+import dotenv from "dotenv";
+dotenv.config();
 import express from "express";
 import helmet from "helmet";
 import morgan from "morgan";
 import mongoose from "mongoose";
 import router from "./router.js";
-import dotenv from "dotenv";
 
-dotenv.config();
 
 const PORT = process.env.PORT || 8070;
 const MONGO_URI = process.env.MONGO_URI || process.env.MONGO_URL;
