@@ -1,226 +1,136 @@
-import mongoose from "mongoose";
 import axios from "axios";
-import Order from "../model/orderHistory.js";
-import sendTON from "./sendTON.controller.js";
+import dotenv from "dotenv";
+dotenv.config();
+// import TransactionHistory from "../model/orderHistory.js";
 
 export async function buyServiceTransaction({ username, productType, amount, priceSUM }) {
-    if (!username || !productType || !amount || !priceSUM) {
-        return { success: false, message: "❗️ Ma'lumotlar yetarli emas" };
-    }
-
-    const session = await mongoose.startSession();
-    session.startTransaction();
-
     try {
-        let recipientHash, createUrl, payload;
-
-        // ============================ STAR order ============================
-        if (productType === "stars") {
-            if (amount < 5) throw new Error("❗️ Stars minimal miqdori 5 ta bo‘lishi kerak");
-
-            const search = await axios.get(`${process.env.API_BASE}/star/recipient/search`, {
-                params: { username, quantity: amount },
-                headers: { "API-Key": process.env.API_KEY }
-            });
-
-            recipientHash = search.data?.recipient;
-            if (!recipientHash) throw new Error("❗️ Ushbu username uchun recipient topilmadi");
-
-            createUrl = `${process.env.API_BASE}/orders/star`;
-            payload = { username, recipient_hash: recipientHash, quantity: amount, wallet_type: "TON" };
-        }
-
-        // ============================ PREMIUM order ============================
-        if (productType === "premium") {
-            if (![3, 6, 12].includes(amount)) throw new Error("❗️ Premium faqat 3, 6 yoki 12 oylik bo‘ladi");
-
-            const search = await axios.get(`${process.env.API_BASE}/premium/recipient/search`, {
-                params: { username, months: amount },
-                headers: { "API-Key": process.env.API_KEY }
-            });
-
-            recipientHash = search.data?.recipient;
-            if (!recipientHash) throw new Error("❗️ Ushbu username uchun recipient topilmadi");
-
-            createUrl = `${process.env.API_BASE}/orders/premium`;
-            payload = { username, recipient_hash: recipientHash, months: amount, wallet_type: "TON" };
-        }
-
-        // ============================ Order yaratish ============================
-        const orderRes = await axios.post(createUrl, payload, {
-            headers: { "API-Key": process.env.API_KEY, "Content-Type": "application/json" }
-        });
-
-        if (!orderRes.data?.amountTON)
-            throw new Error("❌ Order yaratildi, lekin amountTON topilmadi");
-
-        // ============================ TON yuborish ============================
-        const tonRes = await sendTON({
-            toWallet: process.env.ADMIN_TON_WALLET,
-            amountTON: orderRes.data.amountTON,
-            comment: `Buyurtma: ${productType} | ${username}`
-        });
-
-        if (!tonRes.success)
-            throw new Error("❌ TON to'lovi amalga oshmadi: " + JSON.stringify(tonRes.error));
-
-        // ============================ MongoDB ga saqlash ============================
-        const savedOrder = await Order.create([{
-            username,
-            productType,
-            amount,
-            priceSUM,
-            orderId: orderRes.data?.order_id,
-            fragmentTxId: orderRes.data?.fragment_tx_id || null,
-            status: orderRes.data?.status || "pending",
-            amountTON: orderRes.data.amountTON,
-            tonkeeperTx: tonRes.data?.tx_id || null
-        }], { session });
-
-        await session.commitTransaction();
-        session.endSession();
-
-        return {
-            success: true,
-            message: "✅ Buyurtma yaratildi va TON to‘lovi muvaffaqiyatli amalga oshirildi!",
-            data: { fragment: orderRes.data, tonkeeper: tonRes.data, order: savedOrder[0] }
-        };
-
+        // console.log({ username, productType, amount, priceSUM });
+        const tonkiper = await axios.get(
+            process.env.TON_API_URL,
+            {},
+            {
+                headers: {
+                    Authorization: `Bearer ${process.env.TON_API_KEY}`
+                }
+            }
+        );
+        console.log(">>>", tonkiper);
     } catch (err) {
-        await session.abortTransaction();
-        session.endSession();
-
-        return { success: false, message: "❌ Xatolik yuz berdi", error: err.response?.data || err.message };
+        console.error("Error initializing tonkiper:", err.message);
     }
+
+
+
+    // 2. Fragment API config
+    // const fragment = axios.post({
+    //     baseURL: process.env.API_BASE,
+    //     headers: { "X-API-KEY": process.env.FRAGMENT_API_KEY }
+    // });
+
+    // const fragment = axios.post({
+    //     baseURL: process.env.FRAGMENT_API_BASE,
+    //     headers: { "X-API-KEY": process.env.FRAGMENT_API_KEY }
+    // });
+
+
+    // let tonPaymentTx = null;
+    // let fragmentTx = null;
+
+    // async function convertToTON(productType, amount) {
+    //     if (productType === "premium") {
+    //         return amount * 0.2;  // masalan 1 oy = 0.2 TON
+    //     }
+    //     if (productType === "stars") {
+    //         return amount * 0.05; // masalan 1 star = 0.05 TON
+    //     }
+    //     throw new Error("Unknown product type");
+    // }
+
+    // try {
+    //     // ⭐ STEP 1 — Avtomatik TON yechish
+    //     const tonAmount = await convertToTON(productType, amount);  // ← narxlarni o'zingiz belgilaysiz
+
+    //     const tonRes = await tonkiper("/wallet/send", {
+    //         to: process.env.ADMIN_WALLET,
+    //         amount: tonAmount,
+    //         message: `Payment for ${productType} x${amount}`
+    //     });
+
+    //     if (!tonRes.data.success) {
+    //         throw new Error("TON yechishda xatolik");
+    //     }
+
+    //     tonPaymentTx = tonRes.data.txid; // rollback uchun saqlaymiz
+
+    //     // ⭐ STEP 2 — Fragment orqali Premium yoki Stars sotib olish
+    //     if (productType === "premium") {
+    //         fragmentTx = await fragment.post("/premium/buy", {
+    //             username,
+    //             months: amount
+    //         });
+    //     }
+
+    //     if (productType === "stars") {
+    //         fragmentTx = await fragment.post("/stars/buy", {
+    //             username,
+    //             count: amount
+    //         });
+    //     }
+
+    //     if (!fragmentTx.data.success) {
+    //         throw new Error("Fragment API purchase failed");
+    //     }
+
+    //     // ⭐ STEP 3 — MONGODBga yozish
+    //     // const history = await TransactionHistory.create({
+    //     //     username,
+    //     //     productType,
+    //     //     amount,
+    //     //     priceSUM,
+    //     //     ton: tonAmount,
+    //     //     tonTxId: tonPaymentTx,
+    //     //     fragmentTx: fragmentTx.data,
+    //     //     status: "success",
+    //     //     createdAt: new Date()
+    //     // });
+
+    //     return {
+    //         success: true,
+    //         message: "Xarid muvaffaqiyatli amalga oshdi",
+    //         data: history
+    //     };
+
+    // } catch (error) {
+    //     console.log("❌ ERROR:", error.message);
+
+    //     // -------- ROLLBACK --------
+    //     if (tonPaymentTx) {
+    //         try {
+    //             await tonkiper.post("/wallet/refund", {
+    //                 txid: tonPaymentTx
+    //             });
+    //         } catch (e) {
+    //             console.log("⚠ TON rollback amalga oshmadi!");
+    //         }
+    //     }
+
+    //     // await TransactionHistory.create({
+    //     //     username,
+    //     //     productType,
+    //     //     amount,
+    //     //     priceSUM,
+    //     //     status: "error",
+    //     //     errorMessage: error.message,
+    //     //     createdAt: new Date()
+    //     // });
+
+    //     return {
+    //         success: false,
+    //         message: "Xarid bajarilmadi",
+    //         error: error.message
+    //     };
+    // }
 }
 
-
-// import mongoose from "mongoose";
-// import axios from "axios";
-// import Order from "../model/orderHistory.js";
-
-// export async function buyServiceTransaction({ username, productType, amount, priceSUM }) {
-//     console.log({ username, productType, amount, priceSUM });
-
-//     if (!username || !productType || !amount || !priceSUM) {
-//         return { success: false, message: "❗️ Ma'lumotlar yetarli emas" };
-//     }
-//     if (productType === "stars" && amount < 5) {
-//         return { success: false, message: "❗️ Stars minimal miqdori 5 ta bo'lishi kerak" };
-//     }
-//     const API_BASE = process.env.API_BASE;
-
-//     const session = await mongoose.startSession();
-//     session.startTransaction(); // MongoDB tranzaksiyasini boshlash
-
-//     try {
-//         let searchUrl = "";
-//         let createUrl = "";
-//         let payload = {};
-
-//         // ======== PRODUCT LOGIC ========
-//         if (productType === "stars") {
-//             searchUrl = `${API_BASE}/star/recipient/search?username=${username}&quantity=${amount}`;
-//             createUrl = `${API_BASE}/orders/star`;
-
-//             const searchRes = await axios.get(searchUrl, {
-//                 headers: { "API-Key": process.env.API_KEY }
-//             });
-//             const recipientHash = searchRes.data?.recipient;
-
-//             if (!recipientHash) {
-//                 throw new Error("❗️ Recipient topilmadi");
-//             }
-
-//             payload = {
-//                 username,
-//                 recipient_hash: recipientHash,
-//                 quantity: amount,
-//                 wallet_type: "TON"
-//             };
-//         } else if (productType === "premium") {
-//             if (![3, 6, 12].includes(amount)) {
-//                 throw new Error("❗️ Premium faqat 3,6,12 oy bo‘ladi");
-//             }
-
-//             searchUrl = `${API_BASE}/premium/recipient/search?username=${username}&months=${amount}`;
-//             createUrl = `${API_BASE}/orders/premium`;
-
-//             const searchRes = await axios.get(searchUrl, {
-//                 headers: { "API-Key": process.env.API_KEY }
-//             });
-//             const recipientHash = searchRes.data?.recipient;
-
-//             if (!recipientHash) {
-//                 throw new Error("❗️ Recipient topilmadi");
-//             }
-
-//             payload = {
-//                 username,
-//                 recipient_hash: recipientHash,
-//                 months: amount,
-//                 wallet_type: "TON"
-//             };
-//         }
-
-//         // ======== CREATE ORDER ========
-//         const orderRes = await axios.post(createUrl, payload, {
-//             headers: {
-//                 "API-Key": process.env.API_KEY,
-//                 "Content-Type": "application/json"
-//             }
-//         });
-
-//         // ======== SAVE ORDER IN MONGO WITH TRANSACTION ========
-//         const savedOrder = await Order.create([{
-//             username,
-//             productType,
-//             amount,
-//             priceSUM,
-//             orderId: orderRes.data?.order_id,
-//             fragmentTxId: orderRes.data?.fragment_tx_id || null,
-//             status: orderRes.data?.status || "pending",
-//             amountTON: orderRes.data?.amountTON || 0
-//         }], { session });
-
-//         // TRANSAKSIYANI TASDIQLASH
-//         await session.commitTransaction();
-//         session.endSession();
-
-//         return {
-//             success: true,
-//             message: "✅ Buyurtma muvaffaqiyatli yaratildi!",
-//             data: {
-//                 api: orderRes.data,
-//                 order: savedOrder[0]
-//             }
-//         };
-
-//     } catch (err) {
-//         await session.abortTransaction();
-//         session.endSession();
-//         return {
-//             success: false,
-//             message: "❌ Xatolik yuz berdi",
-//             error: err.response?.data || err.message
-//         };
-//     }
-// };
-
-
-
-// ==============Stars=================
-// {
-//   "username": "Azimjon_M",
-//   "productType": "stars",
-//   "amount": 500,
-//   "priceSUM": 120000
-// }
-// ==============Premium=================
-// {
-//   "username": "Azimjon_M",
-//   "productType": "premium",
-//   "amount": 6,
-//   "priceSUM": 240000
-// }
 
