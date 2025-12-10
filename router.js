@@ -9,6 +9,8 @@ import { getTelegramUser } from "./controller/getTelegramUser.controller.js";
 import { buyServiceTransaction } from "./controller/fragment.controller.js";
 import { STAR_PRICES, PREMIUM_PRICES } from "./utils/prices.js";
 
+import paymentController from "./controller/paymentController.js";
+
 dayjs.extend(utc);
 dayjs.extend(timezone);
 
@@ -16,6 +18,13 @@ dayjs.extend(utc);
 dayjs.extend(timezone);
 
 const router = express.Router();
+
+router.post(
+  "/purchase",
+  paymentController.purchaseProduct.bind(paymentController)
+);
+
+router.get("/balance", paymentController.checkBalance.bind(paymentController));
 
 /* ============================================================
    PAYNET JSON-RPC
@@ -223,45 +232,14 @@ router.post("/buy-service", async (req, res) => {
   const { username, productType, amount, priceSUM } = req.body;
 
   if (!username || !productType || !amount || !priceSUM) {
-    return res.status(400).json({
-      success: false,
-      error: {
-        code: 400,
-        message:
-          "Barcha parametrlar kerak: username, productType, amount, priceSUM",
-        data: { receivedBody: req.body },
-      },
-    });
+    return res.json(
+      "Barcha parametrlar kerak: username, productType, amount, priceSUM"
+    );
   }
 
   try {
-<<<<<<< HEAD
-    const result = await buyServiceTransaction({
-      username,
-      productType,
-      amount,
-      priceSUM,
-    });
-
-    if (result.success) {
-      return res.json({
-        success: true,
-        message: result.message,
-        data: result.data,
-      });
-    } else {
-      return res.status(400).json({
-        success: false,
-        error: {
-          code: 400,
-          message: result.message || "Xatolik yuz berdi",
-          data: result.error || null,
-        },
-      });
-    }
-=======
-    const result = await buyServiceTransaction({ username, productType, amount, priceSUM });
-    console.log(result);
+    // const result = await buyServiceTransaction(req.body);
+    const result = await buyServiceTransaction(req.body);
 
     // if (result) {
     //   return res.json({ success: true, message: result.message, data: result.data });
@@ -275,16 +253,11 @@ router.post("/buy-service", async (req, res) => {
     //     },
     //   });
     // }
-
->>>>>>> b9633d3d745f1dfe1741b24addaaaf57da0c3c1e
+    res.send(result);
   } catch (err) {
     return res.status(500).json({
-      success: false,
-      error: {
-        code: 500,
-        message: "Server xatosi",
-        data: { errorMessage: err.message, stack: err.stack },
-      },
+      message: "Server xatosi",
+      error: { message: err.message },
     });
   }
 });
